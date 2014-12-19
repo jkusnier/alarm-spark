@@ -44,44 +44,44 @@ bool fullRedraw = true;
 void setup() {
     Serial.begin(9600);
     Time.zone(-4);
-    
+
     pinMode(A0, OUTPUT); //buzzer
-    
+
     digole.begin(LCD128x64);  //Set display to color OLED 160x128
     digole.disableCursor();
     // digole.displayConfig(0);
     // digole.displayStartScreen(0);
     digole.clearScreen(); //CLear screen
     delay(50);
-    
+
     Spark.variable("time", &timeoutput, STRING);
     Spark.variable("otemp", &otemp, STRING);
-    
+
     Spark.function("u_otemp", u_otemp);
     Spark.function("u_message", u_message);
-    
+
     // TODO put some place holder test in placd for temp and dates
-    
-    // RGB.control(true); 
+
+    // RGB.control(true);
     // RGB.color(0, 0, 0);
-    
+
     // tone(D2, 440, 200);
 }
 
 void loop() {
     currentTime = Time.now();
     uint32_t n = millis();
-    
+
     if (n - lastSync > SYNC_TIME_MILLIS) {
         Spark.syncTime();
         lastSync = n;
     }
-    
+
     if (n - displayUpdated > UPDATE_DISPLAY || displayUpdated == 0 || currentTime < displayUpdated || fullRedraw) {
         displayUpdated = n;
         if (currentTime != lastTime) {
             currentSec = Time.second();
-            
+
             if (Time.minute() == 0 && currentSec == 0) {
                 fullRedraw = true;
                 digole.clearScreen();
@@ -89,13 +89,13 @@ void loop() {
 
             lastTime = currentTime;
             sprintf(timeoutput, "%02d.%02d", Time.hourFormat12(), Time.minute());
-            
+
             digole.setFont(fonts[5]);
             digole.setPrintPos(0, 0);
             digole.print(timeoutput);
-            
+
             digole.setFont(0);
-         
+
             // Seconds
             digole.setPrintPos(14, 3);
             sprintf(secoutput, "%02d", currentSec);
@@ -107,7 +107,7 @@ void loop() {
                 sprintf(dateStr, "%3s %02d/%02d", _days_short[Time.weekday()], Time.month(), Time.day());
                 digole.print(dateStr);
             }
-            
+
             // Alarm
             if ((Time.minute() == 30 && Time.hour() == 6) && (currentSec >= 0 && currentSec <= 20) && Time.weekday() >= 2 && Time.weekday() <= 6 && Time.year() > 2000) {
                 playAlarm();
@@ -127,14 +127,14 @@ void loop() {
             updateTemp = false;
             Spark.publish("jk-blink/outsidetemp", otemp, 300, PRIVATE);
         }
-        
+
         digole.setFont(0);
         digole.setPrintPos(0, 4);
         // digole.print("       "); // Clear out old temp space
         // digole.setPrintPos(0, 4);
         digole.print(otemp);
     }
-    
+
     if (updateMsg) {
         updateMsg = false;
         Spark.publish("jk-blink/message", message, 300, PRIVATE);
@@ -143,10 +143,10 @@ void loop() {
         digole.setPrintPos(0, 3);
         digole.print(message);
     }
-    
+
     if (fullMsg.length() > 0) {
         if (n - msgUpdated > UPDATE_MESSAGE || msgUpdated == 0 || currentTime < msgUpdated) {
-            msgUpdated = n;        
+            msgUpdated = n;
             if (fullMsg.length() <= 13) {
                 sprintf(message, "%-13s", fullMsg.c_str());
                 // sprintf(message, "%-13s", msg.substring(0, msg.length() > 13 ? 13 : msg.length()).c_str());
@@ -156,19 +156,19 @@ void loop() {
                 sprintf(message, "%-13s", tmp.substring(msgStart, 13).c_str());
                 if (msgStart++ >= 14) msgStart = 0;
             }
-    
+
             digole.setFont(0);
             digole.setPrintPos(0, 3);
             digole.print(message);
         }
     }
-    
+
     // if (updateMsg || fullRedraw) {
     //     digole.setFont(0);
     //     digole.setPrintPos(0, 3);
     //     digole.print(message);
     // }
-    
+
     if (fullRedraw) {
         fullRedraw = false;
     }
