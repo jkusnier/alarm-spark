@@ -3,6 +3,8 @@
 
 // This #include statement was automatically added by the Spark IDE.
 #include "DigoleSerialDisp.h"
+#include "rest_client.h"
+#include "jsmnSpark.h"
 
 #define UPDATE_DISPLAY 200
 #define UPDATE_MESSAGE 300
@@ -32,14 +34,28 @@ char message[14];
 
 int u_otemp(String temp);
 int u_message(String msg);
+int u_update_alarm(String nothing);
 
 bool updateTemp = false;
 char otemp[5];
+
+uint32_t nextAlarmTime;
+uint32_t nextAlarmDay;
+uint32_t nextAlarmStatus;
+char nextAlarmName[50];
+bool updateAlarm = false;
+bool haveAlarm = false;
 
 const unsigned char fonts[] = {6, 10, 18, 51, 120, 123};
 const char _days_short[8][4] = {"","Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 
 bool fullRedraw = true;
+
+RestClient client = RestClient("api.weecode.com");
+
+#define TOKEN_STRING(js, t, s) \
+	(strncmp(js+(t).start, s, (t).end - (t).start) == 0 \
+	&& strlen(s) == (t).end - (t).start)
 
 void setup() {
     Serial.begin(9600);
@@ -198,4 +214,55 @@ int u_message(String msg) {
 
 void playAlarm() {
     tone(A0, 600, 500);
+}
+
+int u_update_alarm(String nothing) {
+	updateAlarm = true;
+  return 1;
+}
+
+String response;
+char urlPath[60];
+char devId[25];
+void getNextAlarm() {
+	Spark.deviceID().toCharArray(devId, 25);
+
+	response = "";
+	sprintf(urlPath, "/alarm/v1/devices/%s/alarms/next", devId);
+
+	int statusCode = client.get(urlPath, &response);
+	if (statusCode == 200) {
+		int i, r;
+		jsmn_parser p;
+		jsmntok_t tok[20];
+		jsmn_init(&p);
+		char obj[50];
+
+		r = jsmn_parse(&p, response.c_str(), tok, 17);
+		if (r == JSMN_SUCCESS) {
+			for (i = 1; i < 17; i+=2) {
+				strlcpy(obj, &response.c_str()[tok[i].start], (tok[i].end - tok[i].start + 1));
+
+				if (TOKEN_STRING(response.c_str(), tok[i], "name")) {
+					strlcpy(nextAlarmName, &response.c_str()[tok[i+1].start], (tok[i+1].end - tok[i+1].start + 1));
+				} else if (TOKEN_STRING(response.c_str(), tok[i], "time")) {
+					strlcpy(obj, &response.c_str()[tok[i+1].start], (tok[i+1].end - tok[i+1].start + 1));
+					nextAlarmTime = atoi(obj);
+				} else if (TOKEN_STRING(response.c_str(), tok[i], "dayOfWeek")) {
+					strlcpy(obj, &response.c_str()[tok[i+1].start], (tok[i+1].end - tok[i+1].start + 1));
+					nextAlarmDay = atoi(obj);
+				} else if (TOKEN_STRING(response.c_str(), tok[i], "status")) {
+					strlcpy(obj, &response.c_str()[tok[i+1].start], (tok[i+1].end - tok[i+1].start + 1));
+					if (TOKEN_STRING(response.c_str(), tok[i+1], "true")) {
+						nextAlarmStatus = 1;
+					} else {
+						nextAlarmStatus = 0;
+					}
+				}
+			}
+			haveAlarm = true;
+		}
+	} else {
+		haveAlarm = false;
+	}
 }
